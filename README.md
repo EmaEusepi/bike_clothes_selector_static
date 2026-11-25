@@ -1,5 +1,9 @@
 # 🚴 Bike Outfit Selector
 
+_______________________________________________________________
+Link: https://emaeusepi.github.io/bike_clothes_selector_static/
+_______________________________________________________________
+
 A lightweight web app that suggests what to wear for a road bike ride, based on the **minimum and maximum temperature** expected during the ride and whether it's **sunny**.
 
 No backend, no build step, no dependencies: just static HTML, CSS and vanilla JavaScript. It can be hosted on GitHub Pages as-is.
