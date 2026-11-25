@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/style.css">
   <script src="js/data.js" defer></script>
   <script src="js/logic.js" defer></script>
+  <script src="js/weather.js" defer></script>
   <script src="js/app.js" defer></script>
 </head>
 <body>
@@ -21,6 +22,35 @@
 
   <main class="container stack">
     <form id="ride-form" class="card form-stack" novalidate>
+      <label class="switch accent">
+        <input id="use-weather" type="checkbox">
+        <span class="slider" aria-hidden="true"></span>
+        <span>Retrieve weather data</span>
+      </label>
+      <div id="weather-fields" class="form-stack" hidden>
+        <label class="field">
+          <span class="field-label">City</span>
+          <input id="city" type="text" autocomplete="address-level2" placeholder="e.g. Milano">
+        </label>
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input id="ride-date" type="date">
+        </label>
+        <div class="row-2">
+          <label class="field">
+            <span class="field-label">Departure</span>
+            <input id="ride-start" type="time">
+          </label>
+          <label class="field">
+            <span class="field-label">Arrival</span>
+            <input id="ride-end" type="time">
+          </label>
+        </div>
+        <div class="row-between">
+          <span id="weather-info" class="muted small"></span>
+          <button id="get-weather" class="btn" type="button">Get weather</button>
+        </div>
+      </div>
       <div class="row-2">
         <label class="field">
           <span class="field-label">T min (°C)</span>

@@ -71,6 +71,9 @@
       class: band.min === band.max ? 'band single' : 'band',
       style: { left: `${left}%`, width: `${right - left}%` },
     }));
+    if (band.mean !== null) {
+      body.append(el('div', { class: 'mean-line', title: 'Perceived mean', style: { left: `${pct(band.mean)}%` } }));
+    }
 
     for (const row of rows) {
       const selected = row.id === selectedId;
@@ -94,7 +97,7 @@
     return el('div', { class: 'chart' }, head, body, axis);
   }
 
-  const state = { result: null, selected: {} };
+  const state = { result: null, selected: {}, weatherMean: null };
   const scale = { min: SETTINGS.scaleMin, max: SETTINGS.scaleMax };
 
   function categoryCard(category, band) {
@@ -118,32 +121,93 @@
 
   function drawResults() {
     const r = state.result;
-    const band = { min: r.tMinPerc, max: r.tMaxPerc };
+    const band = { min: r.tMinPerc, max: r.tMaxPerc, mean: r.tMeanPerc };
     const summary = el('div', { class: 'card' },
       el('div', { class: 'summary-main' },
         el('span', { class: 'muted' }, 'Perceived'),
-        el('strong', {}, tempRange(r.tMinPerc, r.tMaxPerc))),
+        el('strong', {}, tempRange(r.tMinPerc, r.tMaxPerc)),
+        r.tMeanPerc !== null ? el('span', { class: 'muted' }, `mean ${fmtT(r.tMeanPerc)}`) : null),
       el('div', { class: 'muted small' },
         `Actual ${tempRange(r.tMin, r.tMax)}`, r.sunny ? ` · sun +${fmtT(r.sunBonus)}` : ' · no sun'),
       el('div', { class: 'legend' },
         el('span', {}, el('i', { class: 'swatch full' }), 'covers the whole ride'),
         el('span', {}, el('i', { class: 'swatch partial' }), 'covers part of it'),
         el('span', {}, el('i', { class: 'swatch none' }), 'out of range'),
-        el('span', {}, el('i', { class: 'swatch ride' }), 'ride (perceived)')));
+        el('span', {}, el('i', { class: 'swatch ride' }), 'ride (perceived)'),
+        r.tMeanPerc !== null ? el('span', {}, el('i', { class: 'swatch mean' }), 'mean (perceived)') : null));
 
     document.getElementById('results').replaceChildren(summary, ...r.categories.map((c) => categoryCard(c, band)));
   }
 
-  document.getElementById('ride-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const tMin = parseNum(document.getElementById('t-min').value);
-    const tMax = parseNum(document.getElementById('t-max').value);
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function calculate() {
+    const tMin = parseNum($('t-min').value);
+    const tMax = parseNum($('t-max').value);
     if (!Number.isFinite(tMin) || !Number.isFinite(tMax)) { toast('Enter T min and T max.'); return; }
     if (tMin > tMax) { toast('T min must be less than or equal to T max.'); return; }
 
-    state.result = recommend(tMin, tMax, document.getElementById('sunny').checked);
+    const tMean = $('use-weather').checked ? state.weatherMean : null;
+    state.result = recommend(tMin, tMax, $('sunny').checked, tMean);
     state.selected = {};
     for (const category of state.result.categories) state.selected[category.id] = category.preselectedId;
     drawResults();
+  }
+
+  async function getWeather() {
+    const city = $('city').value.trim();
+    const date = $('ride-date').value;
+    const start = $('ride-start').value;
+    const end = $('ride-end').value;
+    if (!city) { toast('Enter a city.'); return; }
+    if (!date || !start || !end) { toast('Enter date, departure and arrival.'); return; }
+    if (minutesOfDay(end) <= minutesOfDay(start)) { toast('Arrival must be after departure.'); return; }
+
+    const button = $('get-weather');
+    button.disabled = true;
+    button.textContent = 'Loading…';
+    try {
+      const location = await geocodeCity(city);
+      const { times, temps } = await fetchHourlyTemperatures(location.latitude, location.longitude, date);
+      const summary = summarizeHourly(times, temps, start, end);
+      if (!summary) { toast('No whole hour between departure and arrival.'); return; }
+
+      $('t-min').value = summary.min;
+      $('t-max').value = summary.max;
+      state.weatherMean = summary.mean;
+      $('weather-info').textContent =
+        `${location.label} · ${summary.count} hourly value${summary.count === 1 ? '' : 's'} · mean ${fmtT(summary.mean)}`;
+      calculate();
+    } catch (error) {
+      toast(error instanceof WeatherError ? error.message : 'Unexpected error while retrieving the weather.');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Get weather';
+    }
+  }
+
+  const now = new Date();
+  $('ride-date').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  $('ride-start').value = `${pad(now.getHours())}:00`;
+  $('ride-end').value = `${pad(Math.min(now.getHours() + 3, 23))}:00`;
+
+  $('use-weather').addEventListener('change', (event) => {
+    $('weather-fields').hidden = !event.target.checked;
+    if (state.result) calculate();
+  });
+  $('get-weather').addEventListener('click', getWeather);
+
+  // Manually edited temperatures no longer match the downloaded data
+  for (const id of ['t-min', 't-max']) {
+    $(id).addEventListener('input', () => {
+      state.weatherMean = null;
+      $('weather-info').textContent = '';
+    });
+  }
+
+  $('ride-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    calculate();
   });
 })();
